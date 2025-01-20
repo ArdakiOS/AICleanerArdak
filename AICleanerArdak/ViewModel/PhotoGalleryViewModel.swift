@@ -7,6 +7,8 @@ import UIKit
 class PhotoGalleryViewModel: ObservableObject {
     @Published var photoAssets: [PHAsset] = []
     @Published var selectedPhotos: Set<PHAsset> = []
+    @Published var videoAssets: [PHAsset] = []
+    @Published var allAssets : [PHAsset] = []
 
     init() {
         fetchPhotos()
@@ -18,14 +20,23 @@ class PhotoGalleryViewModel: ObservableObject {
                 let fetchOptions = PHFetchOptions()
                 fetchOptions.sortDescriptors = [NSSortDescriptor(key: "creationDate", ascending: false)]
                 let allPhotos = PHAsset.fetchAssets(with: .image, options: fetchOptions)
-
-                var assets: [PHAsset] = []
+                let allVideos = PHAsset.fetchAssets(with: .video, options: fetchOptions)
+                
+                
+                var photoAssets: [PHAsset] = []
                 allPhotos.enumerateObjects { asset, _, _ in
-                    assets.append(asset)
+                    photoAssets.append(asset)
+                }
+                
+                var videoAssets: [PHAsset] = []
+                allVideos.enumerateObjects { asset, _, _ in
+                    videoAssets.append(asset)
                 }
 
                 DispatchQueue.main.async {
-                    self.photoAssets = assets
+                    self.photoAssets = photoAssets
+                    self.videoAssets = videoAssets
+                    self.allAssets = photoAssets + videoAssets
                 }
             }
         }

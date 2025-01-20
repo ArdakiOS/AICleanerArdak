@@ -2,11 +2,16 @@
 import SwiftUI
 import Photos
 
+enum PhotoLibraryDisplayOptions {
+    case video, photo, all
+}
+
 struct PhotoGalleryView: View {
     @ObservedObject var viewModel : PhotoGalleryViewModel
     let columns = [GridItem(.flexible()), GridItem(.flexible())]
     @Binding var selectedPhotos : Set<PHAsset>
     @Environment(\.dismiss) var dismiss
+    @State var displayOptions : PhotoLibraryDisplayOptions
     var body: some View {
         ZStack(alignment: .bottom){
             Color(hex: "#0E0F10").ignoresSafeArea()
@@ -40,16 +45,42 @@ struct PhotoGalleryView: View {
                 // Photo Gallery
                 ScrollView {
                     LazyVGrid(columns: columns, spacing: 10) {
-                        ForEach(viewModel.photoAssets, id: \.self) { asset in
-                            PhotoGridItem(asset: asset, isSelected: selectedPhotos.contains(asset))
-                                .onTapGesture {
-                                    if selectedPhotos.contains(asset) {
-                                        selectedPhotos.remove(asset)
-                                    } else {
-                                        selectedPhotos.insert(asset)
+                        switch displayOptions {
+                        case .video:
+                            ForEach(viewModel.videoAssets, id: \.self) { asset in
+                                PhotoGridItem(asset: asset, isSelected: selectedPhotos.contains(asset))
+                                    .onTapGesture {
+                                        if selectedPhotos.contains(asset) {
+                                            selectedPhotos.remove(asset)
+                                        } else {
+                                            selectedPhotos.insert(asset)
+                                        }
                                     }
-                                }
+                            }
+                        case .photo:
+                            ForEach(viewModel.photoAssets, id: \.self) { asset in
+                                PhotoGridItem(asset: asset, isSelected: selectedPhotos.contains(asset))
+                                    .onTapGesture {
+                                        if selectedPhotos.contains(asset) {
+                                            selectedPhotos.remove(asset)
+                                        } else {
+                                            selectedPhotos.insert(asset)
+                                        }
+                                    }
+                            }
+                        case .all:
+                            ForEach(viewModel.allAssets, id: \.self) { asset in
+                                PhotoGridItem(asset: asset, isSelected: selectedPhotos.contains(asset))
+                                    .onTapGesture {
+                                        if selectedPhotos.contains(asset) {
+                                            selectedPhotos.remove(asset)
+                                        } else {
+                                            selectedPhotos.insert(asset)
+                                        }
+                                    }
+                            }
                         }
+                        
                     }
                 }
             }
@@ -109,5 +140,5 @@ struct PhotoGridItem: View {
 
 
 #Preview {
-    PhotoGalleryView(viewModel: PhotoGalleryViewModel(), selectedPhotos: .constant([]))
+    PhotoGalleryView(viewModel: PhotoGalleryViewModel(), selectedPhotos: .constant([]), displayOptions: .photo)
 }

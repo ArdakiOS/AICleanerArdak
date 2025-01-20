@@ -29,11 +29,11 @@ struct PrivacyView: View {
                 else {
                     HStack{
                         HStack{
-                            Text("0 photo")
+                            Text("\(privVM.photoCount) photo")
                                 .font(.custom(FontExt.reg.rawValue, size: 14))
                             Rectangle()
                                 .frame(width: 1)
-                            Text("0 video")
+                            Text("\(privVM.videoCount) video")
                                 .font(.custom(FontExt.reg.rawValue, size: 14))
                         }
                         .frame(height: 17)
@@ -85,25 +85,8 @@ struct PrivacyView: View {
                             UploadingView()
                         } else {
                             ZStack(alignment: .bottom) {
-                                ScrollView {
-                                    LazyVGrid(columns: columns, spacing: 10) {
-                                        ForEach(privVM.savedPhotos, id: \.self) { asset in
-                                            VStack(alignment: .leading){
-                                                Image(uiImage: asset.image)
-                                                    .resizable()
-                                                    .scaledToFill()
-                                                    .frame(width: 168, height: 281)
-                                                    .clipped()
-                                                
-                                                Text(asset.name)
-                                                    .foregroundStyle(.white)
-                                                    .font(.custom(FontExt.med.rawValue, size: 15))
-                                                Text("\(String(format: "%.1f", asset.sizeInMB)) MB")
-                                                    .foregroundStyle(Color(hex: "#7F8080"))
-                                                    .font(.custom(FontExt.reg.rawValue, size: 15))
-                                            }
-                                        }
-                                    }
+                                VStack{
+                                    GridView(assets: $privVM.savedPhotos)
                                 }
                                 Button{
                                     privVM.photoLibPresented.toggle()
@@ -134,7 +117,7 @@ struct PrivacyView: View {
         .sheet(isPresented: $privVM.photoLibPresented, onDismiss: {
             privVM.copySelectedPhotosToLocalStorage()
         }, content: {
-            PhotoGalleryView(viewModel: photoVM, selectedPhotos: $privVM.selectedPhotos)
+            PhotoGalleryView(viewModel: photoVM, selectedPhotos: $privVM.selectedPhotos, displayOptions: .all)
                 .presentationDetents([.fraction(0.9)])
                 .presentationCornerRadius(20)
                 .presentationDragIndicator(.visible)

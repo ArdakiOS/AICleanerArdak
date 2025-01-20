@@ -23,7 +23,11 @@ class PrivacyViewModel: ObservableObject {
     
     @Published var selectedPhotos: Set<PHAsset> = []
     @Published var savedPhotos: [PhotoDetails] = []
+    @Published var savedVideos : [PhotoDetails] = []
     @Published var uploading = false
+    
+    @AppStorage("photoCount") var photoCount = 0
+    @AppStorage("videoCount") var videoCount = 0
     
 
     init() {
@@ -64,6 +68,16 @@ class PrivacyViewModel: ObservableObject {
         guard !selectedPhotos.isEmpty else { return }
         uploading = true
         for asset in selectedPhotos {
+            switch asset.mediaType {
+            case .unknown:
+                continue
+            case .image:
+                photoCount += 1
+            case .video:
+                videoCount += 1
+            case .audio:
+                continue
+            }
             let options = PHImageRequestOptions()
             options.isSynchronous = true
             
