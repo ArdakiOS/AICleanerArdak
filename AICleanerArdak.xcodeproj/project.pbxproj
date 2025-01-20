@@ -6,6 +6,11 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		98ACC88F2D3E417000B91990 /* GoogleSignIn in Frameworks */ = {isa = PBXBuildFile; productRef = 98ACC88E2D3E417000B91990 /* GoogleSignIn */; };
+		98ACC8912D3E417000B91990 /* GoogleSignInSwift in Frameworks */ = {isa = PBXBuildFile; productRef = 98ACC8902D3E417000B91990 /* GoogleSignInSwift */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXFileReference section */
 		98ACC83F2D37C94200B91990 /* AICleanerArdak.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = AICleanerArdak.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
@@ -36,6 +41,8 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				98ACC88F2D3E417000B91990 /* GoogleSignIn in Frameworks */,
+				98ACC8912D3E417000B91990 /* GoogleSignInSwift in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -78,6 +85,8 @@
 			);
 			name = AICleanerArdak;
 			packageProductDependencies = (
+				98ACC88E2D3E417000B91990 /* GoogleSignIn */,
+				98ACC8902D3E417000B91990 /* GoogleSignInSwift */,
 			);
 			productName = AICleanerArdak;
 			productReference = 98ACC83F2D37C94200B91990 /* AICleanerArdak.app */;
@@ -107,6 +116,9 @@
 			);
 			mainGroup = 98ACC8362D37C94200B91990;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				98ACC88D2D3E417000B91990 /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 98ACC8402D37C94200B91990 /* Products */;
 			projectDirPath = "";
@@ -345,6 +357,30 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		98ACC88D2D3E417000B91990 /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/google/GoogleSignIn-iOS";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 8.0.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		98ACC88E2D3E417000B91990 /* GoogleSignIn */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 98ACC88D2D3E417000B91990 /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */;
+			productName = GoogleSignIn;
+		};
+		98ACC8902D3E417000B91990 /* GoogleSignInSwift */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 98ACC88D2D3E417000B91990 /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */;
+			productName = GoogleSignInSwift;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 98ACC8372D37C94200B91990 /* Project object */;
 }
