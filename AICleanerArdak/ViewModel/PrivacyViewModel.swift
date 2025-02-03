@@ -2,26 +2,23 @@
 import SwiftUI
 import Photos
 
+enum PrivacyStates {
+    case firstCreatePin, firstRepeatPin, secondRepeatPin, secondCreatePin, enterExistingPin, view
+}
+
 class PrivacyViewModel: ObservableObject {
-    @Published var pin: [String] = ["", "", "", ""] {
-        didSet {
-            isPinEntered = isPinSet()
-        }
-    }
+    @Published var pin: [String] = ["", "", "", ""]
     
-    @Published var confirmPin: [String] = ["", "", "", ""] {
-        didSet {
-            isConfirmed = isPinTheSame()
-        }
-    }
+    @Published var confirmPin: [String] = ["", "", "", ""]
     
-    @Published var isPinEntered = false
-    @Published var isConfirmed = false
+    @Published var secondRepeatPin : [String] = ["", "", "", ""]
+    
+    @Published var pageState = PrivacyStates.firstCreatePin
     
     @Published var repeatPinWrong = false
     @Published var photoLibPresented = false
     
-    @Published var selectedPhotos: Set<PHAsset> = []
+    @Published var selectedPhotos: [PHAsset] = []
     @Published var savedPhotos: [PhotoDetails] = []
     @Published var savedVideos : [PhotoDetails] = []
     @Published var uploading = false
@@ -31,10 +28,14 @@ class PrivacyViewModel: ObservableObject {
     
 
     init() {
-        if let savedPin = UserDefaults.standard.string(forKey: "privacyPin") {
-            self.pin = Array(savedPin).map { String($0) }
-            isPinEntered = true
-            isConfirmed = true
+        if UserDefaults.standard.bool(forKey: "usePin"){
+            if let savedPin = UserDefaults.standard.string(forKey: "privacyPin") {
+                self.pin = Array(savedPin).map { String($0) }
+                pageState = .enterExistingPin
+                self.loadSavedPhotosFromLocalStorage()
+            }
+        } else {
+            pageState = .view
             self.loadSavedPhotosFromLocalStorage()
         }
     }
@@ -44,29 +45,29 @@ class PrivacyViewModel: ObservableObject {
         UserDefaults.standard.set(pinString, forKey: "privacyPin")
     }
     
-    func isPinSet() -> Bool {
+    func isPinSet() {
         let joinedPin = pin.joined()
-        if joinedPin.count < 4 {
-            return false
-        }
-        else {
-            savePin()
-            return true
+        if joinedPin.count == 4 {
+            pageState = .firstRepeatPin
         }
     }
     
-    func isPinTheSame() -> Bool {
+    func isPinTheSame(){
         if confirmPin.joined().count == 4 && pin.joined() == confirmPin.joined(){
-            return true
-        } else {
-            return false
+            savePin()
+            pageState = .view
         }
-        
     }
     
     func copySelectedPhotosToLocalStorage() {
         guard !selectedPhotos.isEmpty else { return }
         uploading = true
+
+        let options = PHImageRequestOptions()
+        options.isSynchronous = false  // ✅ Use async requests to avoid blocking the UI
+        options.isNetworkAccessAllowed = true  // ✅ Allows downloading from iCloud if needed
+        options.deliveryMode = .highQualityFormat  // ✅ Ensures full-quality images
+
         for asset in selectedPhotos {
             switch asset.mediaType {
             case .unknown:
@@ -78,16 +79,19 @@ class PrivacyViewModel: ObservableObject {
             case .audio:
                 continue
             }
-            let options = PHImageRequestOptions()
-            options.isSynchronous = true
             
-            PHImageManager.default().requestImageDataAndOrientation(for: asset, options: options) { data, _, _, _ in
+            PHImageManager.default().requestImageDataAndOrientation(for: asset, options: options) { data, _, _, error in
                 if let data = data {
                     self.saveImageDataToDocuments(data: data, asset: asset)
+                } else {
+                    DispatchQueue.main.async {
+                        self.uploading = false
+                    }
                 }
             }
         }
     }
+
     
     private func saveImageDataToDocuments(data: Data, asset: PHAsset) {
         let fileManager = FileManager.default
@@ -116,16 +120,18 @@ class PrivacyViewModel: ObservableObject {
             // Filter for image files (optional, based on file extension)
             let imageURLs = fileURLs.filter { $0.pathExtension.lowercased() == "jpg" || $0.pathExtension.lowercased() == "png" }
 
+            
             // Load image details
             savedPhotos = imageURLs.compactMap { url in
                 guard let data = try? Data(contentsOf: url),
                       let image = UIImage(data: data) else { return nil }
 
-                let name = url.lastPathComponent
+                var name = url.lastPathComponent
+                let filenameWithoutExtension = (name as NSString).deletingPathExtension
                 let sizeInBytes = Double(data.count)
                 let sizeInMB = sizeInBytes / (1024.0 * 1024.0)
 
-                return PhotoDetails(image: image, sizeInMB: sizeInMB, name: name)
+                return PhotoDetails(image: image, sizeInMB: sizeInMB, name: filenameWithoutExtension)
             }
             DispatchQueue.main.asyncAfter(deadline: .now() + 1){
                 self.uploading = false

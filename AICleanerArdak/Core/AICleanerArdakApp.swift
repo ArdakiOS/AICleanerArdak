@@ -11,11 +11,30 @@ import GoogleSignIn
 @main
 struct AICleanerArdakApp: App {
     @UIApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
+    @StateObject private var entitlementManager: EntitlementManager
     
+    @StateObject private var subscriptionsManager: SubscriptionsManager
+    
+    @UIApplicationDelegateAdaptor(AppDelegate.self) var delegate
+    
+    init() {
+        let entitlementManager = EntitlementManager()
+        let subscriptionsManager = SubscriptionsManager(entitlementManager: entitlementManager)
+        
+        self._entitlementManager = StateObject(wrappedValue: entitlementManager)
+        self._subscriptionsManager = StateObject(wrappedValue: subscriptionsManager)
+        
+    }
     var body: some Scene {
         WindowGroup {
-            ContentView()
-                
+            NavigationStack{
+                ContentView()
+                    .environmentObject(entitlementManager)
+                    .environmentObject(subscriptionsManager)
+                    .task {
+                        await subscriptionsManager.updatePurchasedProducts()
+                    }
+            }
         }
     }
 }

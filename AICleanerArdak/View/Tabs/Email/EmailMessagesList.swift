@@ -11,7 +11,7 @@ struct EmailMessagesList: View {
     @ObservedObject var vm : EmailViewModel
     @Environment(\.dismiss) var dismiss
     var body: some View {
-        ZStack{
+        ZStack(alignment: .bottom){
             Color(hex: "#0E0F10").ignoresSafeArea()
             VStack{
                 HStack{
@@ -70,6 +70,23 @@ struct EmailMessagesList: View {
                 }
             }
             .padding(.horizontal)
+            
+            Button{
+                vm.deleteMessages()
+            } label: {
+                HStack{
+                    Text("Delete selected")
+                }
+                .foregroundStyle(.white)
+                .font(.custom(FontExt.bold.rawValue, size: 15))
+                .frame(width: 352, height: 60)
+                .background(Color(hex: "#0D65E0"))
+                .clipShape(RoundedRectangle(cornerRadius: 100))
+                .offset(y: vm.selectedMesagesToDelete.isEmpty ? 150 : 0)
+            }
+            .animation(.easeInOut(duration: 0.5), value: vm.selectedMesagesToDelete)
+            .animation(.easeInOut(duration: 0.5), value: vm.messagesToDisplay)
+            .padding(.bottom)
         }
     }
 }

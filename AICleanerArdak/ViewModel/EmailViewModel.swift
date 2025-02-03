@@ -6,7 +6,7 @@ class EmailViewModel : ObservableObject {
     
     @Published var gAccount : GIDGoogleUser?
     @Published var foldersIds : [LabelModel] = []
-    @Published var selectedFolderToDelete : [LabelModel] = []
+    @Published var selectedFolderToDelete : LabelModel?
     @Published var foldersToDisplay : [LabelModel] = []
     
     @Published var messagesIds : [Messages] = []
@@ -16,7 +16,7 @@ class EmailViewModel : ObservableObject {
     @Published var messagesToDisplay : [MessagesToDisplay] = []
     @Published var selectedMesagesToDelete : [MessagesToDisplay] = []
     
-    @Published var nextPageToken = ""
+    @Published var nextPageToken : String?
     
     
     
@@ -51,7 +51,7 @@ class EmailViewModel : ObservableObject {
         GIDSignIn.sharedInstance.signOut()
         gAccount = nil
         foldersIds = []
-        selectedFolderToDelete = []
+        selectedFolderToDelete = nil
         foldersToDisplay = []
         messagesIds = []
         selectedFolder = nil
@@ -62,7 +62,6 @@ class EmailViewModel : ObservableObject {
     
     func loadFolders() {
         if gAccount != nil {
-            print("Bearer \(gAccount!.accessToken.tokenString)")
             guard let url = URL(string: "https://gmail.googleapis.com/gmail/v1/users/me/labels") else {return }
             var request = URLRequest(url: url)
             request.httpMethod = "GET"
@@ -90,7 +89,7 @@ class EmailViewModel : ObservableObject {
     func getFolderDetails() {
         if !foldersIds.isEmpty {
             print("Bearer \(gAccount!.accessToken.tokenString)")
-            var temp : [LabelModel] = []
+            foldersToDisplay = []
             for folder in foldersIds {
                 guard let url = URL(string: "https://gmail.googleapis.com/gmail/v1/users/me/labels/\(folder.id)") else {return }
                 var request = URLRequest(url: url)
@@ -106,6 +105,7 @@ class EmailViewModel : ObservableObject {
                         DispatchQueue.main.async {
                             self.foldersToDisplay.append(decodedData)
                             self.foldersToDisplay = self.foldersToDisplay.sorted(by: {$0.messagesTotal ?? 0 > $1.messagesTotal ?? 0})
+                            self.selectedFolderToDelete = nil
                         }
                     }
                     catch {
@@ -123,8 +123,12 @@ class EmailViewModel : ObservableObject {
     func getFolderMessages() {
         guard let id = selectedFolder?.id else {return}
         var urlStr = ""
-        if !nextPageToken.isEmpty{
-            urlStr = "https://gmail.googleapis.com/gmail/v1/users/me/messages?labelIds=\(id)&maxResults=20&pageToken=\(nextPageToken)"
+        if let token = nextPageToken{
+            if !token.isEmpty{
+                urlStr = "https://gmail.googleapis.com/gmail/v1/users/me/messages?labelIds=\(id)&maxResults=20&pageToken=\(token)"
+            } else {
+                urlStr = "https://gmail.googleapis.com/gmail/v1/users/me/messages?labelIds=\(id)&maxResults=20"
+            }
         } else {
             urlStr = "https://gmail.googleapis.com/gmail/v1/users/me/messages?labelIds=\(id)&maxResults=20"
         }
@@ -213,22 +217,91 @@ class EmailViewModel : ObservableObject {
         
         return dateFormatter.string(from: date)
     }
+    
+    func deleteMessages() {
+        guard let url = URL(string: "https://gmail.googleapis.com/gmail/v1/users/me/messages/batchDelete") else {return}
+        
+        var request = URLRequest(url: url)
+        request.setValue("Bearer \(gAccount!.accessToken.tokenString)", forHTTPHeaderField: "Authorization")
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+
+        let body = DeleteMessagesRequest(ids: selectedMesagesToDelete.map { $0.id }) // Directly map ids
+        
+        do {
+            let encoder = JSONEncoder()
+            let encodedData = try encoder.encode(body)
+            if let jsonString = String(data: encodedData, encoding: .utf8) {
+//                print("Request Body JSON:\n\(jsonString)\n")
+            }
+            request.httpBody = encodedData
+        } catch {
+            print(error)
+        }
+        
+        let task = URLSession.shared.dataTask(with: request) {data, resp, error in
+            guard data != nil, error == nil else {return}
+            if let response = resp as? HTTPURLResponse {
+                if(200...299).contains(response.statusCode){
+                    DispatchQueue.main.async {
+                        for id in body.ids {
+                            if let idOnDisplay = self.messagesToDisplay.firstIndex(where: {$0.id == id}){
+                                self.messagesToDisplay.remove(at: idOnDisplay)
+                            }
+                        }
+                        self.selectedMesagesToDelete = []
+                        self.loadFolders()
+                    }
+                }
+            }
+        }
+        task.resume()
+    }
+    
+    func deleteFolder() async{
+        DispatchQueue.main.async {
+            self.selectedMesagesToDelete = []
+        }
+        do {
+            if let data = try await getAllIdsOfFolder() {
+                DispatchQueue.main.async {
+                    for i in data.messages {
+                        self.selectedMesagesToDelete.append(MessagesToDisplay(id: i.id, title: "", text: "", date: ""))
+                    }
+                    self.deleteMessages()
+                }
+                
+            }
+        } catch {
+            print(error)
+        }
+    }
+    
+    func getAllIdsOfFolder() async throws -> FolderMessagesResponse? {
+        guard let id = selectedFolderToDelete?.id else { return nil }
+        guard let url = URL(string: "https://gmail.googleapis.com/gmail/v1/users/me/messages?labelIds=\(id)&maxResults=500") else { return nil }
+        
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.setValue("Bearer \(gAccount!.accessToken.tokenString)", forHTTPHeaderField: "Authorization")
+        
+        let (data, response) = try await URLSession.shared.data(for: request)
+        
+        guard let httpResponse = response as? HTTPURLResponse, (200...299).contains(httpResponse.statusCode) else {
+            print("Invalid response: \(response)")
+            return nil
+        }
+        
+        do {
+            let decoder = JSONDecoder()
+            let decodedData = try decoder.decode(FolderMessagesResponse.self, from: data)
+//            print(decodedData)
+            return decodedData
+        } catch {
+            print("Decoding error: \(error)")
+            throw error
+        }
+    }
+
 }
 
-
-//{
-//    "name": "Date",
-//    "value": "Fri, 19 Jul 2024 03:32:51 +0000"
-//},
-//{
-//    "name": "From",
-//    "value": "\"Твиттер\" \u003cinfo@twitter.com\u003e"
-//},
-//{
-//    "name": "To",
-//    "value": "Ardak Ardak \u003cluxr2ge@gmail.com\u003e"
-//},
-//{
-//    "name": "Subject",
-//    "value": "Opera GX твитнул(а): no more."
-//}

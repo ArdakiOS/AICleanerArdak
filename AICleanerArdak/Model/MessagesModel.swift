@@ -9,7 +9,7 @@ import Foundation
 
 struct FolderMessagesResponse : Hashable, Decodable {
     let messages : [Messages]
-    let nextPageToken : String
+    let nextPageToken : String?
 }
 
 struct Messages : Hashable, Decodable {
@@ -37,4 +37,9 @@ struct MessagesToDisplay : Hashable {
     var title : String
     var text : String
     var date : String
+}
+
+
+struct DeleteMessagesRequest : Hashable, Codable{
+    var ids : [String]
 }

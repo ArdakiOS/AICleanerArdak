@@ -29,7 +29,6 @@ class CalendarViewModel : ObservableObject {
         switch status {
         case .notDetermined:
             shouldRequestPermission = true
-            print("in class\(shouldRequestPermission)")
         case .authorized: fetchEventsFromCalendar()
         case .denied: print("Access denied")
         default: break
@@ -72,6 +71,7 @@ class CalendarViewModel : ObservableObject {
                 try eventStore.remove(events, span: .thisEvent)
                 withAnimation {
                     allEvents.remove(at: allEvents.firstIndex(of: events)!)
+                    selectedEvents.removeAll()
                 }
             } catch {
                 print(error)

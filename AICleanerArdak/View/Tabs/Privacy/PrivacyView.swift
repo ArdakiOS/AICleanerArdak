@@ -1,32 +1,102 @@
 
 import SwiftUI
 
+
+
 struct PrivacyView: View {
     @StateObject var privVM = PrivacyViewModel()
     @EnvironmentObject var photoVM : PhotoGalleryViewModel
     let columns = [GridItem(.flexible()), GridItem(.flexible())]
+    @State var tempPinEntered = false
+    @State var pin : [String] = Array(repeating: "", count: 4)
+    @State var pinIncorrect = false
     var body: some View {
         ZStack{
             Color(hex: "#0E0F10").ignoresSafeArea()
+            
             VStack{
-                if !privVM.isConfirmed {
-                    if !privVM.isPinEntered {
-                        Text("Create a PIN")
-                            .font(.custom(FontExt.semiBold.rawValue, size: 22))
-                        PinCodeField(pin: $privVM.pin, vm: privVM, repeatingPin: false)
-                    }
-                    else {
+                switch privVM.pageState {
+                case .firstCreatePin :
+                    Text("Create a PIN")
+                        .font(.custom(FontExt.semiBold.rawValue, size: 22))
+                    PinCodeField(pin: $privVM.pin, vm: privVM)
+                        .onChange(of: privVM.pin) { _ in
+                            privVM.isPinSet()
+                        }
+                    
+                case .firstRepeatPin :
+                    VStack{
                         Text("Repeat a PIN")
                             .font(.custom(FontExt.semiBold.rawValue, size: 22))
-                        PinCodeField(pin: $privVM.confirmPin, vm: privVM, repeatingPin: true)
+                        PinCodeField(pin: $privVM.confirmPin, vm: privVM)
+                            .onChange(of: privVM.confirmPin) { _ in
+                                privVM.isPinTheSame()
+                            }
+                        Text("PINs are not the same")
+                            .font(.custom(FontExt.semiBold.rawValue, size: 18))
+                            .foregroundStyle(.red)
+                            .opacity(privVM.repeatPinWrong ? 1 : 0)
                     }
+                    
+                case .enterExistingPin :
+                    Text("Enter your PIN")
+                        .font(.custom(FontExt.semiBold.rawValue, size: 22))
+                    PinCodeField(pin: $pin, vm: privVM)
+                        .onChange(of: pin) { _ in
+                            if pin.joined().count == 4 {
+                                if pin.joined() == privVM.pin.joined() {
+                                    privVM.pageState = .view
+                                } else {
+                                    pinIncorrect = true
+                                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5){
+                                        pin = Array(repeating: "", count: 4)
+                                        pinIncorrect = false
+                                    }
+                                }
+                            }
+                        }
+                    
+                    Text("PINs are not the same")
+                        .font(.custom(FontExt.semiBold.rawValue, size: 18))
+                        .foregroundStyle(.red)
+                        .opacity(pinIncorrect ? 1 : 0)
+                    
+                    
+                case .secondRepeatPin :
+                    Text("Repeat a PIN")
+                        .font(.custom(FontExt.semiBold.rawValue, size: 22))
+                    PinCodeField(pin: $privVM.secondRepeatPin, vm: privVM)
+                        .onChange(of: privVM.secondRepeatPin) { _ in
+                            if privVM.secondRepeatPin.joined().count == 4 {
+                                if privVM.secondRepeatPin.joined() == privVM.pin.joined(){
+                                    privVM.pin = Array(repeating: "", count: 4)
+                                    privVM.pageState = .secondCreatePin
+                                } else {
+                                    privVM.repeatPinWrong = true
+                                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5){
+                                        privVM.secondRepeatPin = Array(repeating: "", count: 4)
+                                        privVM.repeatPinWrong = false
+                                    }
+                                }
+                            }
+                        }
                     Text("PINs are not the same")
                         .font(.custom(FontExt.semiBold.rawValue, size: 18))
                         .foregroundStyle(.red)
                         .opacity(privVM.repeatPinWrong ? 1 : 0)
                     
-                }
-                else {
+                case .secondCreatePin :
+                    Text("Create a PIN")
+                        .font(.custom(FontExt.semiBold.rawValue, size: 22))
+                    PinCodeField(pin: $privVM.pin, vm: privVM)
+                        .onChange(of: privVM.pin) { _ in
+                            if privVM.pin.joined().count == 4 {
+                                privVM.pageState = .view
+                                privVM.savePin()
+                            }
+                        }
+                    
+                case .view :
                     HStack{
                         HStack{
                             Text("\(privVM.photoCount) photo")
@@ -45,7 +115,7 @@ struct PrivacyView: View {
                         Spacer()
                         
                         Button{
-                            //
+                            privVM.pageState = .secondRepeatPin
                         } label: {
                             Image("Lock")
                                 .resizable()
@@ -103,70 +173,69 @@ struct PrivacyView: View {
                                 .padding(.bottom, 20)
                             }
                         }
+                        
                     }
                     
                 }
-                   
+                
+                
             }
             .padding(.horizontal, 12)
-            .animation(.easeInOut(duration: 1), value: privVM.isPinEntered)
-            .animation(.easeInOut(duration: 1), value: privVM.isConfirmed)
-            .animation(.easeInOut(duration: 1), value: privVM.uploading)
+            .animation(.easeInOut(duration: 0.3), value: privVM.uploading)
+            .animation(.easeInOut(duration: 0.3), value: privVM.pageState)
+            .foregroundStyle(.white)
+            .sheet(isPresented: $privVM.photoLibPresented, onDismiss: {
+                privVM.copySelectedPhotosToLocalStorage()
+            }, content: {
+                PrivacyGalleryView(viewModel: photoVM, selectedPhotos: $privVM.selectedPhotos)
+                    .presentationDetents([.fraction(0.9)])
+                    .presentationCornerRadius(20)
+                    .presentationDragIndicator(.visible)
+            })
         }
-        .foregroundStyle(.white)
-        .sheet(isPresented: $privVM.photoLibPresented, onDismiss: {
-            privVM.copySelectedPhotosToLocalStorage()
-        }, content: {
-            PhotoGalleryView(viewModel: photoVM, selectedPhotos: $privVM.selectedPhotos, displayOptions: .all)
-                .presentationDetents([.fraction(0.9)])
-                .presentationCornerRadius(20)
-                .presentationDragIndicator(.visible)
-        })
+        .onAppear{
+            if UserDefaults.standard.bool(forKey: "usePin") == false {
+                privVM.pageState = .view
+                privVM.loadSavedPhotosFromLocalStorage()
+            }
+        }
     }
-}
-
-#Preview {
-    NavView(curPage: .privacy)
-}
-
-
-struct PinCodeField : View {
-    @Binding var pin : [String]
-    @ObservedObject var vm : PrivacyViewModel
-    @FocusState var focusField : Int?
-    @State var repeatingPin : Bool
-    var body: some View {
-        HStack{
-            ForEach(0..<4) { index in
-                ZStack{
-                    Circle().fill(Color(hex: "#181818"))
-                    SecureField("", text: $pin[index])
-                        .multilineTextAlignment(.center)
-                        .foregroundStyle(.blue)
-                        .font(.largeTitle)
-                        .focused($focusField, equals: index)
-                        .tag(index)
-                        .onChange(of: pin[index]) { newValue in
-                            if !newValue.isEmpty {
-                                if index == 3 {
-                                    focusField = nil
-                                    if repeatingPin{
-                                        if !vm.isPinTheSame() {
-                                            vm.repeatPinWrong = true
-                                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5){
-                                                pin = Array(repeating: "", count: 4)
-                                            }
-                                        }
+    
+    #Preview {
+        NavView(curPage: .privacy)
+    }
+    
+    
+    struct PinCodeField : View {
+        @Binding var pin : [String]
+        @ObservedObject var vm : PrivacyViewModel
+        @FocusState var focusField : Int?
+        var body: some View {
+            HStack(spacing: 15){
+                ForEach(0..<4) { index in
+                    ZStack{
+                        Circle().fill(Color(hex: "#181818"))
+                        SecureField("", text: $pin[index])
+                            .keyboardType(.numberPad)
+                            .multilineTextAlignment(.center)
+                            .foregroundStyle(.blue)
+                            .font(.largeTitle)
+                            .focused($focusField, equals: index)
+                            .tag(index)
+                            .onChange(of: pin[index]) { newValue in
+                                if !newValue.isEmpty {
+                                    if index == 3 {
+                                        focusField = nil
+                                    } else {
+                                        focusField = (focusField ?? 0) + 1
                                     }
                                 } else {
-                                    focusField = (focusField ?? 0) + 1
+                                    focusField = (focusField ?? 0) - 1
                                 }
-                            } else {
-                                focusField = (focusField ?? 0) - 1
                             }
-                        }
+                    }
+                    .frame(width: 53, height: 53)
                 }
-                .frame(width: 53, height: 53)
             }
         }
     }

@@ -8,7 +8,9 @@ struct CalendarView: View {
         ZStack(alignment: .bottom){
             Color(hex: "#0E0F10").ignoresSafeArea()
             VStack{
+                
                 if vm.shouldRequestPermission {
+                    PremiumBanner()
                     Spacer()
                     Button{
                         vm.requestAccessToCalendar()
@@ -26,6 +28,24 @@ struct CalendarView: View {
                 }
                 else {
                     ScrollView(.vertical) {
+                        PremiumBanner()
+                        HStack{
+                            Text("My calendar")
+                                .font(.custom(FontExt.semiBold.rawValue, size: 18))
+                                .foregroundStyle(.white)
+                            
+                            Spacer()
+                            
+                            Button{
+                                vm.selectedEvents = Set(vm.allEvents)
+                            }label: {
+                                Text("Select all")
+                                    .font(.custom(FontExt.reg.rawValue, size: 15))
+                                    .foregroundStyle(Color(hex: "#0D65E0"))
+                            }
+                            
+                        }
+                        .padding(.vertical)
                         LazyVStack(spacing: 10){
                             ForEach(vm.allEvents, id: \.self) {row in
                                 CalendarRow(row: row, selectedEvents: $vm.selectedEvents)
@@ -44,9 +64,7 @@ struct CalendarView: View {
                 }
                 
             }
-            .onAppear{
-                print("in view\(vm.shouldRequestPermission)")
-            }
+            
             
             .padding(.horizontal)
             
@@ -77,7 +95,9 @@ struct CalendarRow : View {
     @Binding var selectedEvents : Set<EKEvent>
     var body: some View {
         ZStack{
-            RoundedRectangle(cornerRadius: 19).fill(Color(hex: "#0D65E0"))
+            if selectedEvents.contains(row){
+                RoundedRectangle(cornerRadius: 19).fill(Color(hex: "#0D65E0"))
+            }
             HStack{
                 VStack(alignment: .leading){
                     Text(row.title)
@@ -113,7 +133,7 @@ struct CalendarRow : View {
             .padding()
             .background(Color(hex: "#181818"))
             .clipShape(RoundedRectangle(cornerRadius: 19))
-            .offset(x: selectedEvents.contains(row) ? 1 : 0)
+            .offset(x: selectedEvents.contains(row) ? 3 : 0)
         }
         .animation(.easeInOut(duration: 0.5), value: selectedEvents)
         .frame(height: 92)

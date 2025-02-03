@@ -5,21 +5,54 @@
 //  Created by Ardak Tursunbayev on 16.01.2025.
 //
 
-import Foundation
+import SwiftUI
 import Photos
 
+enum Qualities : CaseIterable{
+    case low, medium, high
+    
+    func displayName() -> String{
+        switch self {
+        case .low:
+            "Low"
+        case .medium:
+            "Medium"
+        case .high:
+            "High"
+        }
+    }
+    
+    func preset() -> String{
+        switch self {
+        case .low:
+            return "AVAssetExportPresetLowQuality"
+        case .medium:
+            return "AVAssetExportPresetMediumQuality"
+        case .high:
+            return "AVAssetExportPreset960x540"
+            
+        }
+    }
+}
 
+enum CompressionStates {
+    case config, inProgress, finished
+}
+
+struct CompressionModel : Hashable {
+    let asset : PHAsset
+    let assetImg : UIImage
+    let name : String
+    let fileSize : Int64
+}
 
 class CompressionViewModel : ObservableObject {
-    @Published var photoLibIsOpen = false
-    @Published var selectedVideos : Set<PHAsset> = []
-    @Published var savedVideos: [PhotoDetails] = []
-    @Published var videoToAsset : [PhotoDetails : PHAsset] = [:]
-    @Published var isUploading = false
-    @Published var isCompressing = false
+    @Published var assets : [CompressionModel] = []
+    @Published var totalVideosSize : Int64 = 0
     
-    @Published var estimatedSizeReduction = 0.0
-    @Published var selectedVideoToEdit : PhotoDetails? {
+    @Published var estimatedSizeReduction : Int64 = 0
+    @Published var actualNewSize : Int64 = 0
+    @Published var selectedVideoToEdit : CompressionModel? {
         didSet {
             if selectedVideoToEdit != nil {
                 openEditor = true
@@ -28,57 +61,46 @@ class CompressionViewModel : ObservableObject {
     }
     @Published var disableQualitySelection = false
     @Published var openEditor = false
-    func prepareAssetToDisplay() {
-        isUploading = true
-        for i in selectedVideos {
-            getAssetDetails(asset: i) { name, size in
-                if let name = name, let size = size {
-                    let newEntry = PhotoDetails(image: i.toUIImage()!, sizeInMB: size, name: name)
-                    DispatchQueue.main.async {
-                        self.savedVideos.append(newEntry)
-                        self.videoToAsset[newEntry] = i
-                    }
-                }
-            }
-        }
-        isUploading = false
-    }
     
-    func getAssetDetails(asset: PHAsset, completion: @escaping (String?, Double?) -> Void) {
-        if let resource = PHAssetResource.assetResources(for: asset).first {
-            let fileName = resource.originalFilename
-            let options = PHAssetResourceRequestOptions()
-            options.isNetworkAccessAllowed = true
-            
-            let fileManager = FileManager.default
-            let tempURL = fileManager.temporaryDirectory.appendingPathComponent(fileName)
-            
-            PHAssetResourceManager.default().writeData(for: resource, toFile: tempURL, options: options) { error in
-                if error == nil {
-                    var fileSizeMB: Double?
-                    if let attributes = try? fileManager.attributesOfItem(atPath: tempURL.path),
-                       let size = attributes[.size] as? Int64 {
-                        fileSizeMB = Double(size) / 1_048_576.0 // Convert bytes to MB
+    @Published var compressionState = CompressionStates.config
+    
+    
+    func prepareAssetToDisplay(videoAssets : [PHAsset]) {
+        
+        DispatchQueue.global(qos: .userInitiated).async {
+            for i in videoAssets {
+                if self.assets.contains(where: {$0.asset.localIdentifier == i.localIdentifier}){
+                    continue
+                }
+                if let img = i.toUIImage() {
+                    let resources = PHAssetResource.assetResources(for: i)
+                    if let resource = resources.first {
+                        let size = i.fileSize()
+                        let originalFilename = resource.originalFilename
+                        
+                        // Get filename without extension
+                        let filenameWithoutExtension = (originalFilename as NSString).deletingPathExtension
+                        
+                        let newEntry = CompressionModel(asset: i, assetImg: img, name: filenameWithoutExtension, fileSize: size)
+                        DispatchQueue.main.async {
+                            self.assets.append(newEntry)
+                            self.totalVideosSize += size
+                        }
                     }
-                    try? fileManager.removeItem(at: tempURL) // Clean up temp file
-                    completion(fileName, fileSizeMB)
-                } else {
-                    completion(fileName, nil) // Return file name but no size if error occurs
                 }
             }
-        } else {
-            completion(nil, nil) // No resource found
+            
         }
     }
     
     func compressVideo(quality : Qualities) {
+        compressionState = .inProgress
         guard let video = selectedVideoToEdit else { return }
-        guard let asset = videoToAsset[video] else { return }
 
         let options = PHVideoRequestOptions()
         options.isNetworkAccessAllowed = true
 
-        PHImageManager.default().requestAVAsset(forVideo: asset, options: options) { avAsset, _, _ in
+        PHImageManager.default().requestAVAsset(forVideo: video.asset, options: options) { avAsset, _, _ in
             guard let asset = avAsset else {
                 print("Failed to get AVAsset")
                 return
@@ -89,32 +111,7 @@ class CompressionViewModel : ObservableObject {
                 return
             }
 
-            let videoSize = videoTrack.naturalSize // This is the original size
-            var preset = ""
-            switch quality {
-            case .low:
-                preset = "AVAssetExportPresetLowQuality"
-            case .medium:
-                preset = "AVAssetExportPresetMediumQuality"
-            case .high:
-                let size = videoSize.width * videoSize.height
-                if size <= 640 * 480{
-                    preset = "AVAssetExportPresetPassthrough"
-                }
-                else if size <= 960 * 540 {
-                    preset = "AVAssetExportPreset640x480"
-                }
-                else if size <= 1280 * 720 {
-                    preset = "AVAssetExportPreset960x540"
-                }
-                else if size <= 1920 * 1080 {
-                    preset = "AVAssetExportPreset1280x720"
-                }
-                else if size <= 3840 * 2160 {
-                    preset = "AVAssetExportPreset640x480"
-                }
-            }
-            print("Original Video Size: \(videoSize)") // Print the size
+            var preset = quality.preset()
 
             let exportSession = AVAssetExportSession(asset: asset, presetName: preset)
 
@@ -134,13 +131,20 @@ class CompressionViewModel : ObservableObject {
                     print("Failed to export video: \(exportSession?.error?.localizedDescription ?? "Unknown error")")
                     return
                 }
-
+                DispatchQueue.main.async {
+                    self.actualNewSize = self.getFileSize(url: compressedVideoURL)
+                }
+                
                 // Save the compressed video to the Photos library
                 PHPhotoLibrary.shared().performChanges {
                     PHAssetChangeRequest.creationRequestForAssetFromVideo(atFileURL: compressedVideoURL)
                 } completionHandler: { success, error in
                     if success {
                         print("Compressed video saved to Photos library.")
+                        DispatchQueue.main.async {
+                            self.compressionState = .finished
+                        }
+                        
                     } else {
                         print("Failed to save video to Photos library: \(error?.localizedDescription ?? "Unknown error")")
                     }
@@ -149,5 +153,63 @@ class CompressionViewModel : ObservableObject {
         }
     }
 
+    func estimateCompressedFileSize(quality : Qualities) {
+        
+        let options = PHVideoRequestOptions()
+        options.isNetworkAccessAllowed = true
+        guard let selectedVideoToEdit = selectedVideoToEdit else {return}
+        
+        PHImageManager.default().requestAVAsset(forVideo: selectedVideoToEdit.asset, options: options) { avAsset, _, _ in
+            guard let asset = avAsset else {
+                print("Failed to get AVAsset")
+                return
+            }
+            let duration = CMTimeGetSeconds(asset.duration) // Get video duration in seconds
+            var bitrate: Double = 0 // Bitrate in bits per second
+            guard let asset = avAsset else {
+                print("Failed to get AVAsset")
+                return
+            }
+            
+            guard let videoTrack = asset.tracks(withMediaType: .video).first else {
+                print("Could not retrieve video track")
+                return
+            }
+            
+            
+            
+            let preset = quality.preset()
+
+            switch preset {
+            case AVAssetExportPresetLowQuality:
+                bitrate = 500_000 // 500 kbps
+            case AVAssetExportPresetMediumQuality:
+                bitrate = 2_000_000 // 2 Mbps
+            case AVAssetExportPreset960x540:
+                bitrate = 5_000_000 // 8 Mbps
+            default:
+                bitrate = 2_000_000 // Default to 2 Mbps
+            }
+
+            DispatchQueue.main.async {
+                self.estimatedSizeReduction = Int64((bitrate * duration) / 8)
+            }
+            
+            
+        }
+        
+        
+    }
     
+    private func getFileSize(url: URL) -> Int64 {
+        do {
+            let resourceValues = try url.resourceValues(forKeys: [.fileSizeKey])
+            if let fileSize = resourceValues.fileSize {
+                return Int64(fileSize)
+            }
+        } catch {
+            print("Error retrieving file size: \(error.localizedDescription)")
+        }
+        return Int64(0.0)
+    }
 }

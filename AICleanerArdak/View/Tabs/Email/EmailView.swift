@@ -32,12 +32,42 @@ struct EmailView: View {
                 }
             } else {
                 VStack{
-                    Button{
-                        vm.signOut()
-                    } label: {
-                        Text("TEMP SIGNOUT")
-                            .font(.largeTitle)
-                            .foregroundStyle(.white)
+                    HStack(alignment: .center){
+                        AsyncImage(url:  vm.gAccount?.profile?.imageURL(withDimension: 42)) { img in
+                            img
+                                .resizable()
+                                .frame(width: 42, height: 42)
+                                .scaledToFit()
+                                .clipShape(Circle())
+                        } placeholder: {
+                            ZStack{
+                                Circle().fill(Color(hex: "#181818"))
+                                Image(systemName: "person")
+                                    .resizable()
+                                    .frame(width: 20, height: 20)
+                            }
+                            .frame(width: 42, height: 42)
+                        }
+                        
+                        VStack(alignment: .leading){
+                            Text(vm.gAccount?.profile?.name ?? "Unknown")
+                                .font(.custom(FontExt.semiBold.rawValue, size: 15))
+                                .foregroundStyle(.white)
+                            Text(vm.gAccount?.profile?.email ?? "Unknown")
+                                .font(.custom(FontExt.reg.rawValue, size: 14))
+                                .foregroundStyle(.white.opacity(0.32))
+                        }
+                        
+                        Button {
+                            vm.signOut()
+                        } label: {
+                            Image(.signOut)
+                                .resizable()
+                                .frame(width: 24, height: 24)
+                        }
+                        
+                        Spacer()
+
                     }
                     
                     ScrollView(.vertical) {
@@ -50,6 +80,27 @@ struct EmailView: View {
                    
                 }
                 .padding(.horizontal)
+            }
+            
+            VStack{
+                Spacer()
+                Button{
+                    Task{
+                        await vm.deleteFolder()
+                    }
+                } label: {
+                    HStack{
+                        Text("Delete selected")
+                    }
+                    .foregroundStyle(.white)
+                    .font(.custom(FontExt.bold.rawValue, size: 15))
+                    .frame(width: 299, height: 60)
+                    .background(Color(hex: "#0D65E0"))
+                    .clipShape(RoundedRectangle(cornerRadius: 100))
+                    .offset(y: vm.selectedFolderToDelete == nil ? 150 : 0)
+                }
+                .animation(.easeInOut(duration: 0.5), value: vm.selectedFolderToDelete)
+                .padding(.bottom)
             }
         }
         .fullScreenCover(isPresented: $openFolder){
@@ -72,13 +123,15 @@ struct EmailFolderView : View {
     
     var body: some View {
         ZStack{
-            RoundedRectangle(cornerRadius: 19).fill(Color(hex: "#0D65E0"))
+            if vm.selectedFolderToDelete == folder {
+                RoundedRectangle(cornerRadius: 19).fill(Color(hex: "#0D65E0"))
+            }
             HStack{
                 ZStack{
                     RoundedRectangle(cornerRadius: 30)
                         .fill(Color(hex: "#282828"))
                         .frame(width: 46, height: 32)
-                    if vm.selectedFolderToDelete.contains(folder) {
+                    if vm.selectedFolderToDelete == folder {
                         RoundedRectangle(cornerRadius: 30)
                             .fill(.white)
                             .frame(width: 46, height: 32)
@@ -125,16 +178,14 @@ struct EmailFolderView : View {
             }
             .clipShape(RoundedRectangle(cornerRadius: 19))
             .onTapGesture {
-                if vm.selectedFolderToDelete.contains(folder){
-                    if let idx = vm.selectedFolderToDelete.firstIndex(of: folder){
-                        vm.selectedFolderToDelete.remove(at: idx)
-                    }
+                if vm.selectedFolderToDelete == folder{
+                    vm.selectedFolderToDelete = nil
                 } else {
-                    vm.selectedFolderToDelete.append(folder)
+                    vm.selectedFolderToDelete = folder
                 }
             }
             .animation(.easeInOut(duration: 0.5), value: vm.selectedFolderToDelete)
-            .offset(x: vm.selectedFolderToDelete.contains(folder) ? 1 : 0)
+            .offset(x: vm.selectedFolderToDelete == folder ? 3 : 0)
         }
         .frame(height: 71)
         
@@ -144,10 +195,11 @@ struct EmailFolderView : View {
 struct MessageView : View {
     @State var message : MessagesToDisplay
     @Binding var selectedMsg : [MessagesToDisplay]
-    
     var body: some View {
         ZStack{
-            RoundedRectangle(cornerRadius: 19).fill(Color(hex: "#0D65E0"))
+            if selectedMsg.contains(message){
+                RoundedRectangle(cornerRadius: 19).fill(Color(hex: "#0D65E0"))
+            }
             HStack{
                 ZStack{
                     Circle().fill(Color(uiColor: generateColorFor(text: String(message.title.first ?? "A"))))
@@ -204,7 +256,7 @@ struct MessageView : View {
                 }
             }
             .animation(.easeInOut(duration: 0.5), value: selectedMsg)
-            .offset(x: selectedMsg.contains(message) ? 1 : 0)
+            .offset(x: selectedMsg.contains(message) ? 3 : 0)
         }
         .frame(height: 71)
         
